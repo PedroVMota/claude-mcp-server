@@ -134,10 +134,14 @@ celerybeat.pid
 # SageMath parsed files
 *.sage.py
 
+# Token storage
+*.enc
+
 # Environments
 .env
 .envrc
 .venv
+.env.local
 env/
 venv/
 ENV/
