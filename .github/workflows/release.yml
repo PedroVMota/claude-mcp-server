@@ -1,0 +1,113 @@
+name: Release
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [dev]
+
+permissions:
+  contents: write
+  packages: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Lowercase repository name
+        id: repo
+        run: echo "name=$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_OUTPUT"
+
+      - name: Determine version bump
+        id: version
+        run: |
+          LABELS='${{ toJSON(github.event.pull_request.labels.*.name) }}'
+
+          HAS_BREAKING=$(echo "$LABELS" | jq 'any(. == "breaking")')
+          HAS_FEATURE=$(echo "$LABELS" | jq 'any(. == "feature")')
+          HAS_FIX=$(echo "$LABELS" | jq 'any(. == "fix")')
+
+          if [ "$HAS_BREAKING" = "true" ]; then
+            BUMP="major"
+          elif [ "$HAS_FEATURE" = "true" ]; then
+            BUMP="minor"
+          elif [ "$HAS_FIX" = "true" ]; then
+            BUMP="patch"
+          else
+            echo "::error::PR must have one of these labels: 'breaking', 'feature', or 'fix'"
+            exit 1
+          fi
+
+          echo "Bump type: $BUMP"
+
+          LATEST_TAG=$(git tag -l 'v*' --sort=-v:refname | head -n 1)
+
+          if [ -z "$LATEST_TAG" ]; then
+            CURRENT_VERSION="0.1.0"
+            echo "No existing tags found. Using default version: $CURRENT_VERSION"
+          else
+            CURRENT_VERSION="${LATEST_TAG#v}"
+            echo "Current version from tag: $CURRENT_VERSION"
+          fi
+
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT_VERSION"
+
+          case "$BUMP" in
+            major)
+              MAJOR=$((MAJOR + 1))
+              MINOR=0
+              PATCH=0
+              ;;
+            minor)
+              MINOR=$((MINOR + 1))
+              PATCH=0
+              ;;
+            patch)
+              PATCH=$((PATCH + 1))
+              ;;
+          esac
+
+          NEW_VERSION="${MAJOR}.${MINOR}.${PATCH}"
+          echo "New version: $NEW_VERSION"
+
+          echo "new_version=$NEW_VERSION" >> "$GITHUB_OUTPUT"
+          echo "new_tag=v$NEW_VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ghcr.io/${{ steps.repo.outputs.name }}:${{ steps.version.outputs.new_version }}
+            ghcr.io/${{ steps.repo.outputs.name }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Create git tag
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -a "${{ steps.version.outputs.new_tag }}" -m "Release ${{ steps.version.outputs.new_tag }}"
+          git push origin "${{ steps.version.outputs.new_tag }}"
