@@ -148,32 +148,36 @@ flowchart LR
 
 #### 2. Dev Release (`release-dev.yml`)
 
-Triggers when a PR is **merged into `dev`**.
+Triggers when a PR is **merged into `dev`** (skipped if `no-deploy` label is present).
 
 ```mermaid
 flowchart TD
-    A[PR merged → dev] --> B[Read PR labels]
-    B --> C{Which label?}
-    C -->|breaking| D["MAJOR bump (1.0.0 → 2.0.0)"]
-    C -->|feature| E["MINOR bump (0.1.0 → 0.2.0)"]
-    C -->|fix| F["PATCH bump (0.1.0 → 0.1.1)"]
-    C -->|none| G[Pipeline fails]
-    D & E & F --> H[Build Docker image]
-    H --> I["Push to GHCR\nghcr.io/…:dev-X.Y.Z"]
-    I --> J["Create git tag\nvX.Y.Z"]
+    A[PR merged → dev] --> B{no-deploy label?}
+    B -->|yes| X[Skip release]
+    B -->|no| C[Read PR labels]
+    C --> D{Which label?}
+    D -->|breaking| E["MAJOR bump (1.0.0 → 2.0.0)"]
+    D -->|feature| F["MINOR bump (0.1.0 → 0.2.0)"]
+    D -->|fix| G["PATCH bump (0.1.0 → 0.1.1)"]
+    D -->|none| H[Pipeline fails]
+    E & F & G --> I[Build Docker image]
+    I --> J["Push to GHCR\nghcr.io/…:dev-X.Y.Z"]
+    J --> K["Create git tag\nvX.Y.Z"]
 ```
 
 #### 3. Production Release (`release-prd.yml`)
 
-Triggers when a PR is **merged into `main`**.
+Triggers when a PR is **merged into `main`** (skipped if `no-deploy` label is present).
 
 ```mermaid
 flowchart TD
-    A[PR merged → main] --> B[Read latest git tag]
-    B --> C{Tag exists?}
-    C -->|no| D[Pipeline fails]
-    C -->|yes| E[Build Docker image]
-    E --> F["Push to GHCR\nghcr.io/…:X.Y.Z\nghcr.io/…:latest"]
+    A[PR merged → main] --> B{no-deploy label?}
+    B -->|yes| X[Skip release]
+    B -->|no| C[Read latest git tag]
+    C --> D{Tag exists?}
+    D -->|no| E[Pipeline fails]
+    D -->|yes| F[Build Docker image]
+    F --> G["Push to GHCR\nghcr.io/…:X.Y.Z\nghcr.io/…:latest"]
 ```
 
 ### End-to-End Example
@@ -228,4 +232,5 @@ Applied via **PR labels** on merges to `dev`:
 | `fix` | patch | `0.1.0` → `0.1.1` |
 | `feature` | minor | `0.1.0` → `0.2.0` |
 | `breaking` | major | `0.1.0` → `1.0.0` |
+| `no-deploy` | **skip** | Merge without triggering any release |
 | *(none)* | **error** | Pipeline fails — label is required |
