@@ -1,4 +1,4 @@
-name: Release
+name: Release Dev
 
 on:
   pull_request:
@@ -10,12 +10,14 @@ permissions:
   packages: write
 
 concurrency:
-  group: release
+  group: release-dev
   cancel-in-progress: false
 
 jobs:
-  release:
-    if: github.event.pull_request.merged == true
+  release-dev:
+    if: >-
+      github.event.pull_request.merged == true &&
+      !contains(github.event.pull_request.labels.*.name, 'no-deploy')
     runs-on: ubuntu-latest
 
     steps:
@@ -100,8 +102,7 @@ jobs:
           context: .
           push: true
           tags: |
-            ghcr.io/${{ steps.repo.outputs.name }}:${{ steps.version.outputs.new_version }}
-            ghcr.io/${{ steps.repo.outputs.name }}:latest
+            ghcr.io/${{ steps.repo.outputs.name }}:dev-${{ steps.version.outputs.new_version }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -109,5 +110,5 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git tag -a "${{ steps.version.outputs.new_tag }}" -m "Release ${{ steps.version.outputs.new_tag }}"
+          git tag -a "${{ steps.version.outputs.new_tag }}" -m "Dev release ${{ steps.version.outputs.new_tag }}"
           git push origin "${{ steps.version.outputs.new_tag }}"
