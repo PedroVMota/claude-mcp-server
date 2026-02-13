@@ -16,8 +16,8 @@ def _setup_env(tmp_path, monkeypatch):
 
 
 def test_store_and_load_token():
-    store_token("ghp_test123")
-    assert load_token() == "ghp_test123"
+    store_token("test-token-123")
+    assert load_token() == "test-token-123"
 
 
 def test_load_token_missing_raises():
@@ -26,13 +26,13 @@ def test_load_token_missing_raises():
 
 
 def test_store_token_file_permissions(tmp_path):
-    path = store_token("ghp_secret")
+    path = store_token("test-token-secret")
     stat = os.stat(path)
     assert oct(stat.st_mode & 0o777) == "0o600"
 
 
 def test_delete_token():
-    store_token("ghp_to_delete")
+    store_token("test-token-to-delete")
     assert delete_token() is True
     with pytest.raises(FileNotFoundError):
         load_token()
@@ -43,6 +43,6 @@ def test_delete_token_when_missing():
 
 
 def test_roundtrip_preserves_special_chars():
-    token = "ghp_t0ken-with.special/chars=+"
+    token = "t0ken-with.special/chars=+"
     store_token(token)
     assert load_token() == token

@@ -19,7 +19,7 @@ def _setup_env(tmp_path, monkeypatch):
 
     from src.services.token_service import store_token
 
-    store_token("ghp_fake_token")
+    store_token("fake-test-token")
 
 
 def _mock_repo(**overrides):
