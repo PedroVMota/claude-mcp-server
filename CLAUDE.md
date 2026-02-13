@@ -16,7 +16,8 @@ We follow **GitHub Flow** — a simple, trunk-based model.
 
 | Branch | Purpose | Lifetime |
 |--------|---------|----------|
-| `master` | Production-ready code. Always deployable. | Permanent |
+| `main` | Production-ready code. Always deployable. | Permanent |
+| `dev` | Integration/staging. Version bumps happen here. | Permanent |
 | `feature/*` | New features | Short-lived |
 | `fix/*` | Bug fixes | Short-lived |
 | `chore/*` | Maintenance, deps, config | Short-lived |
@@ -25,10 +26,11 @@ We follow **GitHub Flow** — a simple, trunk-based model.
 
 ### Rules
 
-- **Never push directly to `master`.** All changes go through Pull Requests.
-- Feature branches are created from `master` and merged back via PR.
+- **Never push directly to `main` or `dev`.** All changes go through Pull Requests.
+- Feature branches are created from `dev` and merged back via PR.
+- `dev` is promoted to `main` for production releases.
 - Delete branches after merge — keep the repo clean.
-- Rebase feature branches on `master` before opening a PR to keep history linear.
+- Rebase feature branches on `dev` before opening a PR to keep history linear.
 
 ---
 
@@ -66,7 +68,7 @@ We use **Conventional Commits** (`<type>(<scope>): <description>`).
 ```
 feat(server): add health check endpoint
 fix(auth): resolve token expiration race condition
-chore(deps): bump typescript to 5.x
+chore(deps): bump cryptography to 43.x
 docs(readme): add setup instructions for local development
 ```
 
@@ -113,7 +115,7 @@ Closes #<issue-number>
 - **Minimum 1 approval** required before merge.
 - All CI checks must pass (lint, test, build).
 - Address all review comments — resolve or discuss, never ignore.
-- Use **squash merge** for feature branches to keep `master` history clean.
+- Use **squash merge** for feature branches to keep `main` history clean.
 - PR author merges after approval (not the reviewer).
 
 ### PR Size Guidelines
@@ -169,33 +171,39 @@ Keep PRs small and focused. Large PRs slow down reviews and increase risk.
 
 | Element | Convention | Example |
 |---------|-----------|---------|
-| Files | `kebab-case` | `health-check.ts` |
-| Classes | `PascalCase` | `McpServer` |
-| Functions | `camelCase` | `handleRequest()` |
-| Constants | `UPPER_SNAKE_CASE` | `MAX_RETRIES` |
-| Variables | `camelCase` | `connectionPool` |
-| Types/Interfaces | `PascalCase` | `ServerConfig` |
-| Env variables | `UPPER_SNAKE_CASE` | `DATABASE_URL` |
+| Files | `snake_case` | `token_service.py` |
+| Classes | `PascalCase` | `SetTokenInput` |
+| Functions | `snake_case` | `handle_set_github_token()` |
+| Constants | `UPPER_SNAKE_CASE` | `DEFAULT_TOKEN_DIR` |
+| Variables | `snake_case` | `token_path` |
+| Types/Models | `PascalCase` | `CreateRepoInput` |
+| Env variables | `UPPER_SNAKE_CASE` | `MCP_ENCRYPTION_KEY` |
 
 ### File Organization
 
 ```
 .
 ├── src/                  # Application source code
-│   ├── index.ts          # Entry point
-│   ├── server/           # Server setup and configuration
-│   ├── handlers/         # Request handlers / tools
+│   ├── main.py           # Entry point
+│   ├── server.py         # FastMCP server + tool definitions
+│   ├── handlers/         # Request handlers
+│   │   └── repo_handler.py
 │   ├── services/         # Business logic
+│   │   ├── github_service.py
+│   │   └── token_service.py
 │   ├── utils/            # Shared utilities
-│   └── types/            # Type definitions
+│   │   └── crypto.py
+│   └── types/            # Pydantic models
+│       └── models.py
 ├── tests/                # Test files (mirrors src/ structure)
 ├── docs/                 # Additional documentation
 ├── .github/              # GitHub config (workflows, templates)
-│   ├── workflows/        # CI/CD pipelines
-│   └── PULL_REQUEST_TEMPLATE.md
-├── package.json
-├── tsconfig.json
+│   └── workflows/        # CI/CD pipelines
+├── pyproject.toml        # Project configuration
+├── requirements.txt      # Runtime dependencies
+├── Dockerfile            # Multi-stage Docker build
 ├── CLAUDE.md             # This file
+├── CONTRIBUTING.md        # Contributing guide
 └── README.md
 ```
 
@@ -207,7 +215,7 @@ Keep PRs small and focused. Large PRs slow down reviews and increase risk.
 
 - Every new feature or bug fix **must** include tests.
 - Tests live in `tests/` mirroring the `src/` structure.
-- Test file naming: `<module>.test.ts` or `<module>.spec.ts`.
+- Test file naming: `test_<module>.py` (e.g., `test_crypto.py`).
 - Aim for meaningful coverage, not 100% line coverage.
 
 ### Test Pyramid
@@ -233,14 +241,13 @@ Every PR triggers the following pipeline:
 
 ### Gates (must all pass to merge)
 
-1. **Lint** — code style and static analysis
-2. **Type Check** — no TypeScript errors
-3. **Unit Tests** — all tests green
-4. **Build** — project compiles successfully
+1. **Unit Tests** — all tests green (`pytest tests/ -v`)
 
 ### Additional (when configured)
 
-- **Integration Tests** — on merge to `master`
+- **Lint** — code style and static analysis
+- **Type Check** — static type checking
+- **Integration Tests** — on merge to `main`
 - **Security Scan** — dependency vulnerability check
 - **Coverage Report** — posted as PR comment
 
@@ -266,7 +273,7 @@ Every PR triggers the following pipeline:
 - Review dependency changes carefully in PRs.
 - Keep dependencies up to date — schedule regular updates.
 - Prefer well-maintained packages with active communities.
-- Run `npm audit` (or equivalent) regularly.
+- Run `pip audit` (or equivalent) regularly.
 
 ### Code Review Security Checklist
 
@@ -294,7 +301,7 @@ When an AI assistant (Claude, Copilot, etc.) works in this repository:
 
 ### Don't
 
-- Push directly to `master`.
+- Push directly to `main` or `dev`.
 - Create files that aren't necessary for the task.
 - Add comments, docstrings, or type annotations to code you didn't change.
 - Over-engineer solutions or add speculative features.
@@ -316,21 +323,21 @@ When an AI assistant (Claude, Copilot, etc.) works in this repository:
 ## Quick Reference
 
 ```bash
-# Branch off master
-git checkout master && git pull origin master
+# Branch off dev
+git checkout dev && git pull origin dev
 git checkout -b feature/my-feature
 
 # Make changes, then commit
 git add <files>
 git commit -m "feat(scope): add new feature"
 
-# Push and open PR
+# Push and open PR to dev
 git push -u origin feature/my-feature
-# Open PR via GitHub UI or: gh pr create --fill
+# Open PR via GitHub UI or: gh pr create --fill --base dev
 
 # After approval, squash merge via GitHub
 ```
 
 ---
 
-*Last updated: 2026-02-10*
+*Last updated: 2026-02-13*
