@@ -63,6 +63,33 @@ Store the key securely — if lost, the encrypted token cannot be recovered. Gen
 | `MCP_ENCRYPTION_KEY` | Yes | Fernet encryption key. Must be a valid 32-byte URL-safe base64-encoded key. |
 | `MCP_TOKEN_PATH` | No | Override the default token file path (`~/.claude-mcp/token.enc`). |
 
+## User Journey: Token Setup
+
+The experience of setting up and using token security:
+
+```mermaid
+journey
+    title Setting Up Token Security
+    section Generate Key
+        Run key generation command: 5: User
+        Copy the generated key: 4: User
+        Set MCP_ENCRYPTION_KEY env var: 3: User
+    section Store Token
+        Ask Claude to store token: 5: User, Claude
+        Token encrypted with Fernet: 5: System
+        File written with 0600 perms: 5: System
+        Confirmation returned: 5: Claude
+    section Use Token
+        Ask Claude to list repos: 5: User, Claude
+        Token decrypted in memory: 5: System
+        GitHub API called: 5: System
+        Results returned: 5: Claude
+    section Rotate Token
+        Generate new GitHub PAT: 4: User
+        Ask Claude to update token: 5: User, Claude
+        Old token overwritten: 5: System
+```
+
 ## Threat Model
 
 ### What is protected

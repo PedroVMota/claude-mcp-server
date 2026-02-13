@@ -81,6 +81,37 @@ docker build -t claude-mcp-server .
 docker run -e MCP_ENCRYPTION_KEY="<your-key>" claude-mcp-server
 ```
 
+### Docker Build Stages
+
+```mermaid
+block-beta
+    columns 3
+
+    block:builder["Builder Stage"]:3
+        columns 3
+        base1["python:3.11-slim"]
+        gcc["gcc + libffi-dev"]
+        venv["/opt/venv"]
+        pip["pip install"]
+        deps["requirements.txt"]
+        src["src/ + pyproject.toml"]
+    end
+
+    space:3
+
+    block:runtime["Runtime Stage"]:3
+        columns 3
+        base2["python:3.11-slim"]
+        copy["COPY /opt/venv"]
+        user["USER mcp (1000)"]
+        entry["ENTRYPOINT claude-mcp"]
+        space4["No build tools"]
+        space5["Minimal footprint"]
+    end
+
+    builder --> runtime
+```
+
 ## Docker Tags
 
 Images are published to GitHub Container Registry (GHCR):

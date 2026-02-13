@@ -72,6 +72,29 @@ flowchart LR
     J --> K["Delete feature\nbranch"]
 ```
 
+## Release Timeline
+
+A typical release cycle from feature development to production:
+
+```mermaid
+timeline
+    title Feature to Production Release
+    section Development
+        Create feature branch : Developer branches from dev
+        Implement & commit : Write code, tests, docs
+        Open PR to dev : Request review from team
+    section Integration
+        CI validation : Automated tests run
+        Code review : Team reviews changes
+        Squash merge to dev : Feature lands in dev
+        Dev release : Docker image dev-X.Y.Z published
+    section Production
+        Open PR dev to main : Promote to production
+        CI validation : Final automated checks
+        Merge to main : Code reaches production
+        Prd release : Docker image X.Y.Z + latest published
+```
+
 ## Rules
 
 1. **Never push directly to `main` or `dev`.** All changes go through Pull Requests.

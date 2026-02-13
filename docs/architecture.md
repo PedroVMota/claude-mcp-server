@@ -107,6 +107,67 @@ sequenceDiagram
     Server-->>Claude: result
 ```
 
+## Module Relationships
+
+```mermaid
+classDiagram
+    class main {
+        +main()
+    }
+    class server {
+        -mcp: FastMCP
+        +set_github_token(token) str
+        +remove_github_token() str
+        +list_repositories() str
+        +create_repository(name, description, private) str
+        +delete_repository(name) str
+    }
+    class repo_handler {
+        +handle_set_github_token(token) str
+        +handle_remove_github_token() str
+        +handle_list_repositories() str
+        +handle_create_repository(name, description, private) str
+        +handle_delete_repository(name) str
+    }
+    class github_service {
+        -_client() Github
+        +list_repositories() list~dict~
+        +create_repository(name, description, private) dict
+        +delete_repository(name) dict
+    }
+    class token_service {
+        -_token_path() Path
+        +store_token(token) Path
+        +load_token() str
+        +delete_token() bool
+    }
+    class crypto {
+        +get_fernet() Fernet
+        +encrypt(plaintext) bytes
+        +decrypt(ciphertext) str
+    }
+
+    main --> server : starts
+    server --> repo_handler : delegates
+    repo_handler --> github_service : repo operations
+    repo_handler --> token_service : token operations
+    github_service --> token_service : loads token
+    token_service --> crypto : encrypt/decrypt
+```
+
+## Code Distribution
+
+```mermaid
+pie title Lines of Code by Layer
+    "Handlers (repo_handler)" : 36
+    "Services (github_service)" : 68
+    "Services (token_service)" : 40
+    "Utils (crypto)" : 28
+    "Server (server)" : 67
+    "Entry (main)" : 10
+    "Types (models)" : 16
+```
+
 ## Dependencies
 
 | Package | Version | Role |

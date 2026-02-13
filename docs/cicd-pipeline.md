@@ -131,6 +131,38 @@ sequenceDiagram
     RP->>GH: push ghcr.io/…:latest
 ```
 
+## Pipeline Stage Durations
+
+Approximate timing for each pipeline stage:
+
+```mermaid
+gantt
+    title CI/CD Pipeline Timing
+    dateFormat ss
+    axisFormat %S s
+
+    section CI Pipeline
+        Checkout code           :ci1, 00, 3s
+        Setup Python 3.11       :ci2, after ci1, 5s
+        Install dependencies    :ci3, after ci2, 15s
+        Run pytest              :ci4, after ci3, 5s
+
+    section Dev Release
+        Checkout (full history) :dev1, 00, 5s
+        Determine version bump  :dev2, after dev1, 2s
+        Login to GHCR           :dev3, after dev2, 2s
+        Build Docker image      :dev4, after dev3, 30s
+        Push to GHCR            :dev5, after dev4, 10s
+        Create git tag          :dev6, after dev5, 3s
+
+    section Prd Release
+        Checkout (full history) :prd1, 00, 5s
+        Resolve version tag     :prd2, after prd1, 2s
+        Login to GHCR           :prd3, after prd2, 2s
+        Build Docker image      :prd4, after prd3, 30s
+        Push to GHCR (2 tags)   :prd5, after prd4, 10s
+```
+
 ## Docker Tag Summary
 
 | Event | Docker Tag | Example |

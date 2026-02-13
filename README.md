@@ -103,6 +103,35 @@ See [CI/CD Pipeline](docs/cicd-pipeline.md) for detailed diagrams, end-to-end ex
 
 ## Documentation
 
+```mermaid
+mindmap
+  root((claude-mcp-server))
+    Architecture
+      Component Diagram
+      Data Flow
+      Module Responsibilities
+    Branching Strategy
+      Git Flow
+      Branch Lifecycle
+      Rules
+    CI/CD Pipeline
+      Pipeline Stages
+      Docker Tags
+      Version Bumps
+    Security
+      Encryption Model
+      Token Lifecycle
+      Threat Model
+    Deployment
+      Local Setup
+      Docker
+      Claude Desktop
+    Contributing
+      Commit Conventions
+      PR Process
+      Code Style
+```
+
 | Document | Description |
 |----------|-------------|
 | [Architecture](docs/architecture.md) | Component diagrams, data flow, module responsibilities |
