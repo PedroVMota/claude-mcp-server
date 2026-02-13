@@ -2,24 +2,21 @@
 
 MCP server for managing GitHub repositories via Claude. Stores your GitHub token encrypted on disk so Claude can manage repos without ever seeing the raw token.
 
-## Table of Contents
+## Architecture
 
-- [Tools](#tools)
-- [Setup](#setup)
-- [Usage](#usage)
-  - [With Claude Desktop](#with-claude-desktop)
-  - [Standalone](#standalone)
-- [Token Security](#token-security)
-- [Development](#development)
-- [CI/CD Pipeline](#cicd-pipeline)
-  - [Git Workflow](#git-workflow)
-  - [Pipeline Stages](#pipeline-stages)
-    - [CI — Pull Request Validation](#1-ci--pull-request-validation-ciyml)
-    - [Dev Release](#2-dev-release-release-devyml)
-    - [Production Release](#3-production-release-release-prdyml)
-  - [End-to-End Example](#end-to-end-example)
-  - [Docker Tag Summary](#docker-tag-summary)
-  - [Version Bump Rules](#version-bump-rules)
+```mermaid
+flowchart LR
+    Claude -->|MCP / stdio| Server["server.py\nFastMCP"]
+    Server --> Handlers["repo_handler.py"]
+    Handlers --> GH["github_service.py\n(PyGithub)"]
+    Handlers --> TK["token_service.py"]
+    TK --> Crypto["crypto.py\n(Fernet)"]
+    GH -.-> TK
+    Crypto --> Disk["~/.claude-mcp/\ntoken.enc"]
+    GH --> API["GitHub API"]
+```
+
+See [Architecture Documentation](docs/architecture.md) for component diagrams and data flow details.
 
 ## Tools
 
@@ -78,6 +75,8 @@ python -m src.main
 - Encrypted token file is stored at `~/.claude-mcp/token.enc` with `0600` permissions
 - Custom path can be set via `MCP_TOKEN_PATH` environment variable
 
+See [Security Documentation](docs/security.md) for the full encryption model and threat model.
+
 ## Development
 
 ```bash
@@ -88,149 +87,27 @@ pip install -e ".[dev]"
 pytest tests/ -v
 ```
 
+See [Contributing Guide](CONTRIBUTING.md) for commit conventions, PR process, and code style.
+
 ## CI/CD Pipeline
 
-### Git Workflow
+The project uses a three-stage GitHub Actions pipeline:
 
-```mermaid
----
-title: claude-mcp-server — Git & Release Flow
----
-gitGraph
-    commit id: "init"
-    branch dev
-    checkout dev
-    commit id: "setup project"
+| Stage | Trigger | Result |
+|-------|---------|--------|
+| **CI** (`ci.yml`) | PR to `dev` or `main` | Runs pytest — gates PR mergeability |
+| **Dev Release** (`release-dev.yml`) | PR merged to `dev` | Version bump from labels, Docker push `dev-X.Y.Z`, git tag |
+| **Prd Release** (`release-prd.yml`) | PR merged to `main` | Docker push `X.Y.Z` + `latest` from existing tag |
 
-    branch feature/auth
-    checkout feature/auth
-    commit id: "add token service"
-    commit id: "add crypto utils"
-    checkout dev
-    merge feature/auth id: "merge feat" tag: "v0.1.0" type: HIGHLIGHT
+See [CI/CD Pipeline](docs/cicd-pipeline.md) for detailed diagrams, end-to-end examples, and version bump rules.
 
-    branch fix/validation
-    checkout fix/validation
-    commit id: "fix input check"
-    checkout dev
-    merge fix/validation id: "merge fix" tag: "v0.1.1" type: HIGHLIGHT
+## Documentation
 
-    checkout main
-    merge dev id: "promote v0.1.1" tag: "latest" type: HIGHLIGHT
-
-    checkout dev
-    branch feature/repos
-    checkout feature/repos
-    commit id: "add repo handler"
-    commit id: "add github service"
-    checkout dev
-    merge feature/repos id: "merge repos" tag: "v0.2.0" type: HIGHLIGHT
-
-    checkout main
-    merge dev id: "promote v0.2.0" tag: "latest " type: HIGHLIGHT
-```
-
-### Pipeline Stages
-
-#### 1. CI — Pull Request Validation (`ci.yml`)
-
-Runs on every PR targeting **`dev`** or **`main`**.
-
-```mermaid
-flowchart LR
-    A[PR opened] --> B[Checkout]
-    B --> C[Setup Python 3.11]
-    C --> D[Install dependencies]
-    D --> E[Run pytest]
-    E -->|pass| F[PR mergeable]
-    E -->|fail| G[PR blocked]
-```
-
-#### 2. Dev Release (`release-dev.yml`)
-
-Triggers when a PR is **merged into `dev`** (skipped if `no-deploy` label is present).
-
-```mermaid
-flowchart TD
-    A[PR merged → dev] --> B{no-deploy label?}
-    B -->|yes| X[Skip release]
-    B -->|no| C[Read PR labels]
-    C --> D{Which label?}
-    D -->|breaking| E["MAJOR bump (1.0.0 → 2.0.0)"]
-    D -->|feature| F["MINOR bump (0.1.0 → 0.2.0)"]
-    D -->|fix| G["PATCH bump (0.1.0 → 0.1.1)"]
-    D -->|none| H[Pipeline fails]
-    E & F & G --> I[Build Docker image]
-    I --> J["Push to GHCR\nghcr.io/…:dev-X.Y.Z"]
-    J --> K["Create git tag\nvX.Y.Z"]
-```
-
-#### 3. Production Release (`release-prd.yml`)
-
-Triggers when a PR is **merged into `main`** (skipped if `no-deploy` label is present).
-
-```mermaid
-flowchart TD
-    A[PR merged → main] --> B{no-deploy label?}
-    B -->|yes| X[Skip release]
-    B -->|no| C[Read latest git tag]
-    C --> D{Tag exists?}
-    D -->|no| E[Pipeline fails]
-    D -->|yes| F[Build Docker image]
-    F --> G["Push to GHCR\nghcr.io/…:X.Y.Z\nghcr.io/…:latest"]
-```
-
-### End-to-End Example
-
-```mermaid
-sequenceDiagram
-    participant Dev as Developer
-    participant FB as feature/auth
-    participant DV as dev branch
-    participant MN as main branch
-    participant CI as CI Pipeline
-    participant RD as Release Dev
-    participant RP as Release Prd
-    participant GH as GHCR
-
-    Dev->>FB: push commits
-    FB->>DV: open PR
-    DV->>CI: trigger tests
-    CI-->>DV: tests pass
-
-    Dev->>DV: merge PR (label: feature)
-    DV->>RD: trigger release-dev
-    RD->>RD: bump version (0.1.0 → 0.2.0)
-    RD->>GH: push ghcr.io/…:dev-0.2.0
-    RD->>DV: create tag v0.2.0
-
-    DV->>MN: open PR (dev → main)
-    MN->>CI: trigger tests
-    CI-->>MN: tests pass
-
-    Dev->>MN: merge PR
-    MN->>RP: trigger release-prd
-    RP->>RP: read tag v0.2.0
-    RP->>GH: push ghcr.io/…:0.2.0
-    RP->>GH: push ghcr.io/…:latest
-```
-
-### Docker Tag Summary
-
-| Event | Docker Tag | Example |
-|-------|-----------|---------|
-| Merge to `dev` | `dev-<version>` | `ghcr.io/pedrovmota/claude-mcp-server:dev-0.2.0` |
-| Merge to `main` | `<version>` | `ghcr.io/pedrovmota/claude-mcp-server:0.2.0` |
-| Merge to `main` | `latest` | `ghcr.io/pedrovmota/claude-mcp-server:latest` |
-
-### Version Bump Rules
-
-Applied via **PR labels** on merges to `dev`:
-
-| Label | Bump | Example |
-|-------|------|---------|
-| `fix` | patch | `0.1.0` → `0.1.1` |
-| `feature` | minor | `0.1.0` → `0.2.0` |
-| `breaking` | major | `0.1.0` → `1.0.0` |
-| `no-deploy` | **skip** | Merge without triggering any release |
-| *(none)* | **error** | Pipeline fails — label is required |
+| Document | Description |
+|----------|-------------|
+| [Architecture](docs/architecture.md) | Component diagrams, data flow, module responsibilities |
+| [Branching Strategy](docs/branching-strategy.md) | Git workflow, branch types, lifecycle diagrams |
+| [CI/CD Pipeline](docs/cicd-pipeline.md) | Pipeline stages, Docker tags, version bump rules |
+| [Security](docs/security.md) | Token encryption, threat model, CI/CD security |
+| [Deployment](docs/deployment.md) | Local setup, Docker, Claude Desktop integration |
+| [Contributing](CONTRIBUTING.md) | Commit conventions, PR process, code style |
